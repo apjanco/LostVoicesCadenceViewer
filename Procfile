@@ -1,1 +1,1 @@
-web: sh setup.sh && streamlit run app.py
+web: sh setup.sh && streamlit run LV_Streamlit_Viewer_App.py
