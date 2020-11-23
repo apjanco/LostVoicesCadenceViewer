@@ -1,15 +1,21 @@
 import streamlit as st
 import pandas as pd
 import altair as alt
-
-
+import plotly.graph_objects as go
+import networkx as nx
+import numpy as np
+import requests 
 st.header("Du Chemin Lost Voices Cadence Data")
 
 # st.cache speeds things up by holding data in cache
-@st.cache
+#@st.cache
 def get_data():
-	url = "https://raw.githubusercontent.com/RichardFreedman/LostVoicesCadenceViewer/main/LV_CadenceData.csv"
-	return pd.read_csv(url)
+    url = "https://raw.githubusercontent.com/RichardFreedman/LostVoicesCadenceViewer/main/LV_CadenceData.csv"
+    df = pd.read_csv(url)
+    cadence_json =  requests.get("https://raw.githubusercontent.com/bmill42/DuChemin/master/phase1/data/duchemin.similarities.json").json()
+    df['similarity'] = cadence_json
+    return df 
+    
 df = get_data()
 
 # Dialogue to Show Raw Data as Table
@@ -83,8 +89,100 @@ piece_diagram = alt.Chart(piece_data).mark_circle().encode(
 st.altair_chart(piece_diagram, use_container_width=True)
 
 
+###
+#Graph Visualization
+###
+cadence_graph = nx.Graph()
+
+# Add a node for each cadence 
+for index, row in df.iterrows():
+    cadence_graph.add_node(row.phrase_number)
+
+# Add all the edges
+for index, row in df.iterrows():
+    [cadence_graph.add_edge(row.phrase_number, df['phrase_number'][i]) for i in row.similarity]
+
+# Get positions for the nodes in G
+pos_ = nx.spring_layout(cadence_graph)
+
+def make_edge(x, y, text, width):
+    
+    '''Creates a scatter trace for the edge between x's and y's with given width
+
+    Parameters
+    ----------
+    x    : a tuple of the endpoints' x-coordinates in the form, tuple([x0, x1, None])
+    
+    y    : a tuple of the endpoints' y-coordinates in the form, tuple([y0, y1, None])
+    
+    width: the width of the line
+
+    Returns
+    -------
+    An edge trace that goes between x0 and x1 with specified width.
+    '''
+    return  go.Scatter(x         = x,
+                       y         = y,
+                       line      = dict(width = width,
+                                   color = 'cornflowerblue'),
+                       hoverinfo = 'phrase_number',
+                       text      = ([text]),
+                       mode      = 'lines')   
+
+# For each edge, make an edge_trace, append to list
+edge_trace = []
+for edge in cadence_graph.edges():
+    char_1 = edge[0]
+    char_2 = edge[1]
+
+    x0, y0 = pos_[char_1]
+    x1, y1 = pos_[char_2]
+
+    text   = char_1 + '--' + char_2 
+    
+    trace  = make_edge([x0, x1, None], [y0, y1, None], text,
+                        0.3*cadence_graph.edges()[edge]['weight']**1.75)
+
+    edge_trace.append(trace)
+
+# Make a node trace
+node_trace = go.Scatter(x = [],
+                        y = [],
+                        text = [],
+                        textposition = "top center",
+                        textfont_size = 10,
+                        mode      = 'markers+text',
+                        hoverinfo = 'none',
+                        marker    = dict(color = [],
+                                         size  = [],
+                                         line  = None))
+
+# For each node in cadence_graph, get the position and size and add to the node_trace
+for node in cadence_graph.nodes():
+    x, y = pos_[node]
+    node_trace['x'] += tuple([x])
+    node_trace['y'] += tuple([y])
+    node_trace['marker']['color'] += tuple(['cornflowerblue'])
+    node_trace['marker']['size'] += tuple([5*cadence_graph.nodes()[node]['size']])
+    node_trace['phrase_number'] += tuple(['<b>' + node + '</b>'])
+
+layout = go.Layout(
+    paper_bgcolor='rgba(0,0,0,0)',
+    plot_bgcolor='rgba(0,0,0,0)'
+)
 
 
+fig = go.Figure(layout = layout)
 
+for trace in edge_trace:
+    fig.add_trace(trace)
 
+fig.add_trace(node_trace)
 
+fig.update_layout(showlegend = False)
+
+fig.update_xaxes(showticklabels = False)
+
+fig.update_yaxes(showticklabels = False)
+
+st.plotly_chart(fig)
