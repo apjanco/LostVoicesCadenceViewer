@@ -96,11 +96,12 @@ cadence_graph = nx.Graph()
 
 # Add a node for each cadence 
 for index, row in df.iterrows():
-    cadence_graph.add_node(row.phrase_number)
+    cadence_graph.add_node(row.phrase_number, size=1.5)
 
 # Add all the edges
 for index, row in df.iterrows():
-    [cadence_graph.add_edge(row.phrase_number, df['phrase_number'][i]) for i in row.similarity]
+    for i in row.similarity:
+        cadence_graph.add_edge(row.phrase_number, df['phrase_number'][i], weight=2)
 
 # Get positions for the nodes in G
 pos_ = nx.spring_layout(cadence_graph)
@@ -121,11 +122,11 @@ def make_edge(x, y, text, width):
     -------
     An edge trace that goes between x0 and x1 with specified width.
     '''
-    return  go.Scatter(x         = x,
+    return  go.Scattergl(x         = x,
                        y         = y,
                        line      = dict(width = width,
                                    color = 'cornflowerblue'),
-                       hoverinfo = 'phrase_number',
+                       hoverinfo = 'text',
                        text      = ([text]),
                        mode      = 'lines')   
 
@@ -146,13 +147,13 @@ for edge in cadence_graph.edges():
     edge_trace.append(trace)
 
 # Make a node trace
-node_trace = go.Scatter(x = [],
+node_trace = go.Scattergl(x = [],
                         y = [],
                         text = [],
                         textposition = "top center",
                         textfont_size = 10,
                         mode      = 'markers+text',
-                        hoverinfo = 'none',
+                        hoverinfo = 'none', 
                         marker    = dict(color = [],
                                          size  = [],
                                          line  = None))
@@ -164,7 +165,7 @@ for node in cadence_graph.nodes():
     node_trace['y'] += tuple([y])
     node_trace['marker']['color'] += tuple(['cornflowerblue'])
     node_trace['marker']['size'] += tuple([5*cadence_graph.nodes()[node]['size']])
-    node_trace['phrase_number'] += tuple(['<b>' + node + '</b>'])
+    # node_trace['phrase_number'] += tuple(['<b>' + node + '</b>'])
 
 layout = go.Layout(
     paper_bgcolor='rgba(0,0,0,0)',
